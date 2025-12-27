@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>PWA Diagnostic Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            line-height: 1.5;
+            background: #09090b;
+            color: #fff;
+        }
+
+        .card {
+            background: #18181b;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #27272a;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .online {
+            background: #064e3b;
+            color: #34d399;
+        }
+
+        .offline {
+            background: #7f1d1d;
+            color: #f87171;
+        }
+
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        pre {
+            background: #000;
+            padding: 10px;
+            overflow: auto;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>PWA Diagnostic</h1>
+
+    <div class="card">
+        <h3>Connection Status</h3>
+        <p>You are: <span id="conn-status" class="status">Checking...</span></p>
+    </div>
+
+    <div class="card">
+        <h3>Service Worker Status</h3>
+        <p id="sw-status">Checking service worker...</p>
+        <button onclick="checkSW()">Refresh SW Status</button>
+        <button onclick="unregisterSW()" style="background: #ef4444;">Unregister & Reset SW</button>
+    </div>
+
+    <div class="card">
+        <h3>Cache Status</h3>
+        <button onclick="listCaches()">List Caches</button>
+        <div id="cache-list"></div>
+    </div>
+
+    <div class="card">
+        <h3>Manifest Link</h3>
+        <p><a href="/manifest.json" style="color: #60a5fa;">View manifest.json</a></p>
+        <p><a href="/sw.js" style="color: #60a5fa;">View sw.js</a></p>
+    </div>
+
+    <script>
+        function updateConnStatus() {
+            const el = document.getElementById('conn-status');
+            if (navigator.onLine) {
+                el.textContent = 'ONLINE';
+                el.className = 'status online';
+            } else {
+                el.textContent = 'OFFLINE';
+                el.className = 'status offline';
+            }
+        }
+        window.addEventListener('online', updateConnStatus);
+        window.addEventListener('offline', updateConnStatus);
+        updateConnStatus();
+
+        async function checkSW() {
+            const el = document.getElementById('sw-status');
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                if (regs.length === 0) {
+                    el.innerHTML = '<span style="color: #f87171;">No service workers registered.</span>';
+                } else {
+                    el.innerHTML = regs.map(r => `
+                        <div>
+                            Scope: ${r.scope}<br>
+                            Status: ${r.active ? '<span style="color: #34d399;">Active</span>' : 'Installing/Waiting'}<br>
+                            Worker: ${r.active ? r.active.scriptURL : 'N/A'}
+                        </div>
+                    `).join('<hr>');
+                }
+            } else {
+                el.textContent = 'Service workers not supported in this browser.';
+            }
+        }
+
+        async function unregisterSW() {
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (let r of regs) {
+                    await r.unregister();
+                }
+                alert('All service workers unregistered. Reload the app to re-register.');
+                location.reload();
+            }
+        }
+
+        async function listCaches() {
+            const el = document.getElementById('cache-list');
+            const keys = await caches.keys();
+            if (keys.length === 0) {
+                el.textContent = 'No caches found.';
+                return;
+            }
+            let html = '<ul>';
+            for (let key of keys) {
+                const cache = await caches.open(key);
+                const requests = await cache.keys();
+                html += `<li><strong>${key}</strong>: ${requests.length} items</li>`;
+            }
+            html += '</ul>';
+            el.innerHTML = html;
+        }
+
+        checkSW();
+    </script>
+</body>
+
+</html>
