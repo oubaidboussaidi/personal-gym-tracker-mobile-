@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Dumbbell, Utensils, User, Activity, Moon, Sun } from 'lucide-react';
+import { Dumbbell, Utensils, User, Activity } from 'lucide-react';
 import { cn } from '@/components/ui/core';
 import { useTheme } from '@/components/theme/ThemeProvider';
 import { motion } from 'framer-motion';
 
 export function BottomNav() {
     const pathname = usePathname();
-    const { theme, toggleTheme } = useTheme();
+    const { theme } = useTheme();
 
     const navItems = [
         { href: '/workouts', label: 'Workout', icon: Dumbbell },
@@ -58,20 +58,6 @@ export function BottomNav() {
                         </Link>
                     );
                 })}
-
-                {/* Theme Toggle */}
-                <button
-                    onClick={toggleTheme}
-                    className="flex flex-col items-center justify-center w-full h-full space-y-1 text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-90"
-                    aria-label="Toggle theme"
-                >
-                    {theme === 'dark' ? (
-                        <Sun size={22} strokeWidth={2} className="transition-transform duration-200" />
-                    ) : (
-                        <Moon size={22} strokeWidth={2} className="transition-transform duration-200" />
-                    )}
-                    <span className="text-[10px] font-semibold">Theme</span>
-                </button>
             </div>
         </nav>
     );

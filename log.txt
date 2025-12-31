@@ -1,0 +1,9 @@
+fdeca33 chore: Final project setup and housekeeping
+4ee402f feat: Add workout history breakdown and theme management
+85bad42 feat: Configure robust PWA support with offline-first logic
+98919e8 feat: Implement detailed Progress visualization and charts
+9c885ef feat: Add Workout session logging and visual navigation
+845d3fc feat: Implement Nutrition tracking with goals and daily logging
+e0fa166 feat: Initialize IndexedDB with Dexie and data utilities
+68ba3f4 style: Setup global design system and core UI layout
+240fe76 Initial commit from Create Next App

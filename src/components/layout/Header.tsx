@@ -2,7 +2,6 @@
 
 import { usePathname } from 'next/navigation';
 import { Badge } from '@/components/ui/core';
-import { Activity } from 'lucide-react';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
 export function Header() {
@@ -45,9 +44,6 @@ export function Header() {
                         Pro
                     </Badge>
                 </div>
-            </div>
-            <div className="h-8 w-8 rounded-full bg-secondary/50 flex items-center justify-center border border-border/50">
-                <Activity size={16} className="text-muted-foreground" />
             </div>
         </header>
     );
