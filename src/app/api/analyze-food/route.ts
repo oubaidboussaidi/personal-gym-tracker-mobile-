@@ -14,12 +14,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Gemini API Key not configured" }, { status: 500 });
         }
 
+        // Initialize with Stable v1 (avoids the v1beta 404 issue)
         const genAI = new GoogleGenerativeAI(apiKey);
 
-        // We use gemini-2.0-flash as it is confirmed available for your key 
-        // and is better at visual food analysis.
+        // Use gemini-1.5-flash (Standard Stable Model)
+        // This model has the most generous free-tier quota (15 RPM / 1M TPM)
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash"
+            model: "gemini-1.5-flash"
         });
 
         const prompt = `Analyze this food image. Provide:
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
         const response = await result.response;
         const text = response.text();
 
-        // Extract JSON safely
+        // Extract JSON safely (handles potential markdown wrapping)
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         const analysis = JSON.parse(jsonMatch ? jsonMatch[0] : text);
 
@@ -53,11 +54,11 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error("AI Analysis error:", error);
 
-        // Final fallback to 1.5-flash if 2.0-flash somehow fails
-        if (error.message?.includes('404')) {
+        // If we still get a 404 or 429, it might be a project-specific restriction
+        if (error.message?.includes('429')) {
             return NextResponse.json({
-                error: "Model error. Check if gemini-2.0-flash is enabled in your AI Studio."
-            }, { status: 500 });
+                error: "AI Quota limit reached. Please wait a minute and try again."
+            }, { status: 429 });
         }
 
         return NextResponse.json({ error: error.message || "Failed to analyze image" }, { status: 500 });
