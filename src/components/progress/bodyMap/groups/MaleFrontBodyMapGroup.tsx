@@ -1,7 +1,7 @@
 import * as React from "react";
 import { MaleFrontBodyMapGroupPart1 } from "./maleFront/MaleFrontBodyMapGroupPart1";
 import { MaleFrontBodyMapGroupPart2 } from "./maleFront/MaleFrontBodyMapGroupPart2";
-const SVGComponent = (props) => (
+const SVGComponent = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     viewBox="0 0 660.46 1206.46"
     fill="none"

@@ -62,8 +62,7 @@ export const BodyMap: React.FC<BodyMapProps> = ({
   interactive = false,
   gender = 'male',
   viewMode = 'muscle',
-  side = 'both',
-}) => {
+  side = 'both' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const hoveredMuscleRef = useRef<string | null>(null);
   const selectedMuscleIds = useMemo(

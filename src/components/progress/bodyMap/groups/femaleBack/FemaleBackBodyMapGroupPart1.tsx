@@ -14,21 +14,13 @@ export const FemaleBackBodyMapGroupPart1: React.FC = () => (
           offset="0%"
           style={{
             stopColor: "rgb(254, 91, 127)",
-            stopOpacity: 1,
-            "--darkreader-inline-stopcolor":
-              "var(--darkreader-text-fe5b7f, #f26a80)",
-          }}
-          data-darkreader-inline-stopcolor=""
+            stopOpacity: 1 }}
         />
         <stop
           offset="100%"
           style={{
             stopColor: "rgb(231, 236, 239)",
-            stopOpacity: 1,
-            "--darkreader-inline-stopcolor":
-              "var(--darkreader-text-e7ecef, #eae1d2)",
-          }}
-          data-darkreader-inline-stopcolor=""
+            stopOpacity: 1 }}
         />
       </radialGradient>
     </defs>
@@ -40,11 +32,7 @@ export const FemaleBackBodyMapGroupPart1: React.FC = () => (
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={3.54}
-        style={{
-          "--darkreader-inline-stroke":
-            "var(--darkreader-text-484a68, #bbb19f)",
-        }}
-        data-darkreader-inline-stroke=""
+        
       />
       <path
         d="M325.87,129.76c-3.85.18-7.32.52-10.42,1.04"
@@ -53,11 +41,7 @@ export const FemaleBackBodyMapGroupPart1: React.FC = () => (
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={3.54}
-        style={{
-          "--darkreader-inline-stroke":
-            "var(--darkreader-text-484a68, #bbb19f)",
-        }}
-        data-darkreader-inline-stroke=""
+        
       />
       <path
         d="M356.13,10.73c79.94,24.39,40.53,149.25,17.44,163.3-22.75,13.85,28.46-42.74-41.48-44.36"
@@ -66,11 +50,7 @@ export const FemaleBackBodyMapGroupPart1: React.FC = () => (
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={3.54}
-        style={{
-          "--darkreader-inline-stroke":
-            "var(--darkreader-text-484a68, #bbb19f)",
-        }}
-        data-darkreader-inline-stroke=""
+        
       />
     </g>
   </>
