@@ -70,21 +70,48 @@ export default function RootLayout({
           <BottomNav />
         </ThemeProvider>
 
-        {/* Standard Service Worker Registration */}
+        {/* PWA & Reliability Scripts */}
         <script dangerouslySetInnerHTML={{
           __html: `
+            // 1. Force reload on ChunkLoadErrors (Critical for PWAs after redeploy)
+            const handleChunkError = (message) => {
+              const chunkError = /Loading chunk [\\d]+ failed | ChunkLoadError | Loading CSS chunk /i;
+              if (message && chunkError.test(message)) {
+                console.warn('PWA: Asset mismatch detected. Recovering...');
+                window.location.reload();
+              }
+            };
+
+            window.addEventListener('error', (e) => handleChunkError(e.message), true);
+            window.addEventListener('unhandledrejection', (e) => {
+              const reason = e.reason && (e.reason.message || e.reason.toString());
+              handleChunkError(reason);
+            });
+
+            // 2. Service Worker Registration with Update Logic
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                  console.log('SW registered successfully');
+                  console.log('SW registered: ', registration.scope);
                   
-                  // Warm cache for main routes
-                  const routesToCache = ['/', '/workouts', '/nutrition', '/progress', '/me', '/offline'];
-                  if (registration.active) {
-                    routesToCache.forEach(route => {
-                      fetch(route).catch(() => {});
-                    });
-                  }
+                  // Check for updates on every page navigation
+                  registration.update();
+
+                  // Handle immediate take over
+                  registration.onupdatefound = () => {
+                    const installingWorker = registration.installing;
+                    if (installingWorker == null) return;
+                    installingWorker.onstatechange = () => {
+                      if (installingWorker.state === 'installed') {
+                        if (navigator.serviceWorker.controller) {
+                          console.log('New content detected. Reloading...');
+                          window.location.reload();
+                        }
+                      }
+                    };
+                  };
+                }).catch(function(err) {
+                  console.log('SW registration failed: ', err);
                 });
               });
             }
