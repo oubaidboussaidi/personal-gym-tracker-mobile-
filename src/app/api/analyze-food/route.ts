@@ -49,8 +49,8 @@ export async function POST(req: Request) {
                             ],
                         },
                     ],
-                    generationConfig: {
-                        responseMimeType: "application/json",
+                    generation_config: {
+                        response_mime_type: "application/json",
                     },
                 }),
             }
@@ -68,7 +68,9 @@ export async function POST(req: Request) {
             throw new Error("Empty response from AI");
         }
 
-        const analysis = JSON.parse(responseText);
+        // Resilient JSON parsing (handles potential markdown wrapping)
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        const analysis = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
 
         return NextResponse.json(analysis);
     } catch (error: any) {
