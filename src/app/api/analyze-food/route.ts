@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -13,56 +14,52 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Gemini API Key not configured" }, { status: 500 });
         }
 
-        // We use the most absolute stable config for visual analysis
-        const prompt = `Analyze this food image and return a JSON object with: 
-        "name" (string), "calories" (number), "protein" (number), "carbs" (number), "fat" (number). 
-        Return ONLY the raw JSON.`;
+        const genAI = new GoogleGenerativeAI(apiKey);
 
-        // Direct Fetch using snake_case (Mandatory for the REST API)
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        // We use gemini-2.0-flash as it is confirmed available for your key 
+        // and is better at visual food analysis.
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.0-flash"
+        });
+
+        const prompt = `Analyze this food image. Provide:
+        1. Name of the dish.
+        2. Estimated Calories (kcal).
+        3. Estimated Protein (g).
+        4. Estimated Carbohydrates (g).
+        5. Estimated Fats (g).
+
+        IMPORTANT: Respond ONLY with a raw JSON object. Use these keys:
+        { "name": string, "calories": number, "protein": number, "carbs": number, "fat": number }`;
+
+        const result = await model.generateContent([
+            prompt,
             {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
+                inlineData: {
+                    data: image,
+                    mimeType: "image/jpeg",
                 },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            parts: [
-                                { text: prompt },
-                                {
-                                    inline_data: {
-                                        mime_type: "image/jpeg",
-                                        data: image,
-                                    },
-                                },
-                            ],
-                        },
-                    ],
-                }),
-            }
-        );
+            },
+        ]);
 
-        if (!response.ok) {
-            const errorBody = await response.json();
-            throw new Error(errorBody.error?.message || "AI Analysis failed");
-        }
+        const response = await result.response;
+        const text = response.text();
 
-        const result = await response.json();
-        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!text) {
-            throw new Error("No analysis received from AI.");
-        }
-
-        // Clean any markdown code blocks from the string
-        const jsonStr = text.replace(/```json|```/g, "").trim();
-        const analysis = JSON.parse(jsonStr);
+        // Extract JSON safely
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        const analysis = JSON.parse(jsonMatch ? jsonMatch[0] : text);
 
         return NextResponse.json(analysis);
     } catch (error: any) {
         console.error("AI Analysis error:", error);
+
+        // Final fallback to 1.5-flash if 2.0-flash somehow fails
+        if (error.message?.includes('404')) {
+            return NextResponse.json({
+                error: "Model error. Check if gemini-2.0-flash is enabled in your AI Studio."
+            }, { status: 500 });
+        }
+
         return NextResponse.json({ error: error.message || "Failed to analyze image" }, { status: 500 });
     }
 }
