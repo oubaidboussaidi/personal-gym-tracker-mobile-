@@ -12,9 +12,12 @@ interface MealScannerProps {
 
 export function MealScanner({ onClose, onConfirm }: MealScannerProps) {
     const [step, setStep] = useState<'camera' | 'scanning' | 'result'>('camera');
+    const [isProcessing, setIsProcessing] = useState(false);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const [result, setResult] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         startCamera();
@@ -33,23 +36,48 @@ export function MealScanner({ onClose, onConfirm }: MealScannerProps) {
             if (videoRef.current) videoRef.current.srcObject = s;
         } catch (err) {
             console.error("Camera error:", err);
-            alert("Could not access camera. Please check permissions.");
+            setError("Could not access camera. Please check permissions.");
         }
     };
 
-    const handleScan = () => {
+    const handleScan = async () => {
+        if (!videoRef.current || !canvasRef.current) return;
+
         setStep('scanning');
-        // Simulate AI analysis
-        setTimeout(() => {
-            setResult({
-                name: "Detected Healthy Meal",
-                calories: Math.floor(Math.random() * 400) + 300,
-                protein: Math.floor(Math.random() * 20) + 15,
-                carbs: Math.floor(Math.random() * 40) + 20,
-                fat: Math.floor(Math.random() * 15) + 5,
+        setError(null);
+
+        try {
+            // Capture image from video
+            const canvas = canvasRef.current;
+            const video = videoRef.current;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error("Could not get canvas context");
+
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+            // Call real AI Analyzer
+            const response = await fetch('/api/analyze-food', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64Image })
             });
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            setResult(data);
             setStep('result');
-        }, 3000);
+        } catch (err: any) {
+            console.error("Scanning error:", err);
+            setError(err.message || "Failed to analyze meal. Please try again.");
+            setStep('camera');
+        }
     };
 
     return (
@@ -83,6 +111,7 @@ export function MealScanner({ onClose, onConfirm }: MealScannerProps) {
                                 playsInline
                                 className="h-full w-full object-cover"
                             />
+                            <canvas ref={canvasRef} className="hidden" />
 
                             {/* Scanning UI Overlays */}
                             <div className="absolute inset-x-8 top-1/4 bottom-1/4 border-2 border-primary/50 rounded-3xl overflow-hidden">
@@ -95,6 +124,11 @@ export function MealScanner({ onClose, onConfirm }: MealScannerProps) {
                             </div>
 
                             <div className="absolute bottom-12 inset-x-0 flex flex-col items-center gap-4">
+                                {error && (
+                                    <div className="bg-destructive/90 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-lg mb-4 text-center max-w-[80%]">
+                                        {error}
+                                    </div>
+                                )}
                                 <p className="text-white/60 text-xs font-bold uppercase tracking-[0.2em] bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
                                     Place food within the frame
                                 </p>
@@ -146,10 +180,18 @@ export function MealScanner({ onClose, onConfirm }: MealScannerProps) {
                             className="absolute inset-0 flex flex-col p-6 items-center justify-center"
                         >
                             <Card className="w-full max-w-sm p-6 space-y-6 bg-zinc-900 border-primary/20 shadow-2xl">
-                                <div className="text-center space-y-1">
-                                    <Badge variant="outline" className="text-primary bg-primary/10 border-primary/20 mb-2">Scan Complete</Badge>
-                                    <h3 className="text-2xl font-black text-white">Is this correct?</h3>
-                                    <p className="text-sm text-zinc-400">AI detected the following nutrition values</p>
+                                <div className="text-center space-y-3">
+                                    <Badge variant="outline" className="text-primary bg-primary/10 border-primary/20">Scan Complete</Badge>
+
+                                    {/* Main Detected Name Display */}
+                                    <div className="space-y-1">
+                                        <div className="text-4xl font-black text-white tracking-tighter drop-shadow-[0_0_15px_rgba(var(--primary),0.3)] capitalize">
+                                            {result.name}
+                                        </div>
+                                        <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em] opacity-80">AI Vision Match</p>
+                                    </div>
+
+                                    <p className="text-sm text-zinc-400">Review the estimated nutrition values below</p>
                                 </div>
 
                                 <div className="space-y-4">
