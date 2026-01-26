@@ -70,10 +70,60 @@
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.6);
   }
 
+  /* Theme Personalities - Global Signatures */
+  :root.cyberpunk {
+    --primary: 320 100% 60%;
+    --ring: 320 100% 60%;
+    --gradient-start: 320 100% 60%;
+    --gradient-end: 280 80% 60%;
+  }
+
+  .dark.cyberpunk {
+    --background: 260 40% 4.9%;
+    --card: 260 40% 6%;
+    --muted: 260 30% 12%;
+  }
+
+  .light.cyberpunk {
+    --background: 320 100% 98%;
+    --card: 0 0% 100%;
+    --muted: 320 50% 95%;
+  }
+
+  :root.ocean {
+    --primary: 199 89% 48%;
+    --ring: 199 89% 48%;
+    --gradient-start: 199 89% 48%;
+    --gradient-end: 210 100% 50%;
+  }
+
+  .dark.ocean {
+    --background: 220 40% 4.9%;
+    --card: 220 40% 6%;
+    --muted: 220 30% 12%;
+  }
+
+  .light.ocean {
+    --background: 200 100% 98%;
+    --card: 0 0% 100%;
+    --muted: 200 50% 95%;
+  }
+
+  :root.onyx {
+    --primary: 142 70% 50%;
+    --ring: 142 70% 50%;
+    --gradient-start: 142 70% 50%;
+    --gradient-end: 158 64% 52%;
+  }
+
+  /* Onyx follows default dark/light colors but ensures the primary is green */
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-feature-settings: "rlig" 1, "calt" 1;
+    transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 

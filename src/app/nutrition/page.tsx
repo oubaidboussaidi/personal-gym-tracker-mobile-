@@ -6,15 +6,18 @@ import { db } from '@/db/db';
 import { Button, Input, Card, SectionHeader, ProgressRing, Badge } from '@/components/ui/core';
 import { MacroProgress } from '@/components/nutrition/MacroProgress';
 import { GoalsCard } from '@/components/nutrition/GoalsCard';
-import { NotificationSettings } from '@/components/settings/NotificationSettings';
-import { ChevronLeft, ChevronRight, Plus, Utensils, Zap } from 'lucide-react';
+import { DangerZone } from '@/components/ui/DangerZone';
+import { ChevronLeft, ChevronRight, Plus, Utensils, Zap, Camera, Trash2, Edit2, X } from 'lucide-react';
 import { checkAndNotify } from '@/lib/notifications/nutritionReminder';
 import { format, addDays, subDays } from 'date-fns';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { MealItem } from '@/components/nutrition/MealItem';
+import { MealScanner } from '@/components/nutrition/MealScanner';
 
 export default function NutritionPage() {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [isAdding, setIsAdding] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
 
     // Quick add states
     const [cal, setCal] = useState('');
@@ -28,7 +31,6 @@ export default function NutritionPage() {
         db.nutritionLogs.where('date').equals(dateKey).first()
         , [dateKey]);
 
-    // Get dynamic goals from database
     const nutritionGoals = useLiveQuery(() =>
         db.nutritionGoals.toCollection().first()
     );
@@ -39,25 +41,6 @@ export default function NutritionPage() {
         carbs: nutritionGoals?.carbsTarget || 250,
         fats: nutritionGoals?.fatTarget || 70
     };
-
-    useEffect(() => {
-        const initGoals = async () => {
-            const count = await db.nutritionGoals.count();
-            if (count === 0) {
-                await db.nutritionGoals.add({
-                    caloriesTarget: 2500,
-                    proteinTarget: 180,
-                    carbsTarget: 250,
-                    fatTarget: 70,
-                    mode: 'manual',
-                    goalType: 'maintain',
-                    activityLevel: 'moderate',
-                    lastCalculated: new Date()
-                });
-            }
-        };
-        initGoals();
-    }, []);
 
     const current = {
         calories: dailyLog?.calories || 0,
@@ -70,10 +53,20 @@ export default function NutritionPage() {
 
     const handleAddMacro = async (e: React.FormEvent) => {
         e.preventDefault();
-        const newCal = (dailyLog?.calories || 0) + (parseFloat(cal) || 0);
-        const newPro = (dailyLog?.protein || 0) + (parseFloat(pro) || 0);
-        const newCarb = (dailyLog?.carbs || 0) + (parseFloat(carb) || 0);
-        const newFat = (dailyLog?.fat || 0) + (parseFloat(fat) || 0);
+        const mealName = `Meal ${(dailyLog?.items?.length || 0) + 1}`;
+        const newItem = {
+            id: crypto.randomUUID(),
+            name: mealName,
+            calories: parseFloat(cal) || 0,
+            protein: parseFloat(pro) || 0,
+            carbs: parseFloat(carb) || 0,
+            fat: parseFloat(fat) || 0,
+        };
+
+        const newCal = (dailyLog?.calories || 0) + newItem.calories;
+        const newPro = (dailyLog?.protein || 0) + newItem.protein;
+        const newCarb = (dailyLog?.carbs || 0) + newItem.carbs;
+        const newFat = (dailyLog?.fat || 0) + newItem.fat;
 
         if (dailyLog) {
             await db.nutritionLogs.update(dailyLog.id, {
@@ -81,6 +74,7 @@ export default function NutritionPage() {
                 protein: newPro,
                 carbs: newCarb,
                 fat: newFat,
+                items: [...(dailyLog.items || []), newItem]
             });
         } else {
             await db.nutritionLogs.add({
@@ -89,7 +83,7 @@ export default function NutritionPage() {
                 protein: newPro,
                 carbs: newCarb,
                 fat: newFat,
-                items: []
+                items: [newItem]
             });
         }
 
@@ -98,9 +92,43 @@ export default function NutritionPage() {
         setCarb('');
         setFat('');
         setIsAdding(false);
-
-        // Trigger notification check after logging
         checkAndNotify();
+    };
+
+    const deleteItem = async (itemId: string) => {
+        if (!dailyLog) return;
+        const itemToDelete = dailyLog.items.find(i => i.id === itemId);
+        if (!itemToDelete) return;
+
+        const newItems = dailyLog.items.filter(i => i.id !== itemId);
+        await db.nutritionLogs.update(dailyLog.id, {
+            calories: Math.max(0, dailyLog.calories - itemToDelete.calories),
+            protein: Math.max(0, dailyLog.protein - itemToDelete.protein),
+            carbs: Math.max(0, dailyLog.carbs - itemToDelete.carbs),
+            fat: Math.max(0, dailyLog.fat - itemToDelete.fat),
+            items: newItems
+        });
+    };
+
+    const updateItem = async (itemId: string, updates: any) => {
+        if (!dailyLog) return;
+        const itemIndex = dailyLog.items.findIndex(i => i.id === itemId);
+        if (itemIndex === -1) return;
+
+        const newItems = [...dailyLog.items];
+        newItems[itemIndex] = { ...newItems[itemIndex], ...updates };
+
+        const totals = newItems.reduce((acc, item) => ({
+            calories: acc.calories + item.calories,
+            protein: acc.protein + item.protein,
+            carbs: acc.carbs + item.carbs,
+            fat: acc.fat + item.fat,
+        }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+        await db.nutritionLogs.update(dailyLog.id, {
+            ...totals,
+            items: newItems
+        });
     };
 
     const resetDay = async () => {
@@ -110,6 +138,7 @@ export default function NutritionPage() {
                 protein: 0,
                 carbs: 0,
                 fat: 0,
+                items: []
             });
         }
     };
@@ -117,7 +146,7 @@ export default function NutritionPage() {
     const isToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in pb-24">
             {/* Header */}
             <header className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -127,13 +156,23 @@ export default function NutritionPage() {
                             Track your daily intake
                         </p>
                     </div>
-                    <Button
-                        size="icon"
-                        onClick={() => setIsAdding(!isAdding)}
-                        className="rounded-full h-12 w-12"
-                    >
-                        <Plus size={24} />
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setIsScanning(true)}
+                            className="rounded-full h-12 w-12"
+                        >
+                            <Camera size={24} />
+                        </Button>
+                        <Button
+                            size="icon"
+                            onClick={() => setIsAdding(!isAdding)}
+                            className="rounded-full h-12 w-12"
+                        >
+                            <Plus size={24} />
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Date Picker */}
@@ -167,11 +206,49 @@ export default function NutritionPage() {
                 </Card>
             </header>
 
+            {/* AI Scanner Overlay */}
+            {isScanning && (
+                <MealScanner
+                    onClose={() => setIsScanning(false)}
+                    onConfirm={(meal) => {
+                        const newItem = {
+                            id: crypto.randomUUID(),
+                            ...meal
+                        };
+                        const handleConfirmResult = async () => {
+                            const newCal = (dailyLog?.calories || 0) + newItem.calories;
+                            const newPro = (dailyLog?.protein || 0) + newItem.protein;
+                            const newCarb = (dailyLog?.carbs || 0) + newItem.carbs;
+                            const newFat = (dailyLog?.fat || 0) + newItem.fat;
+
+                            if (dailyLog) {
+                                await db.nutritionLogs.update(dailyLog.id, {
+                                    calories: newCal,
+                                    protein: newPro,
+                                    carbs: newCarb,
+                                    fat: newFat,
+                                    items: [...(dailyLog.items || []), newItem]
+                                });
+                            } else {
+                                await db.nutritionLogs.add({
+                                    date: dateKey,
+                                    calories: newCal,
+                                    protein: newPro,
+                                    carbs: newCarb,
+                                    fat: newFat,
+                                    items: [newItem]
+                                });
+                            }
+                            setIsScanning(false);
+                            checkAndNotify();
+                        };
+                        handleConfirmResult();
+                    }}
+                />
+            )}
+
             {/* Goals Card */}
             <GoalsCard />
-
-            {/* Notification Settings */}
-            <NotificationSettings />
 
             {/* Main Calorie Ring */}
             <Card className="p-6 gradient-card relative overflow-hidden">
@@ -201,41 +278,66 @@ export default function NutritionPage() {
             </Card>
 
             {/* Quick Add Form */}
-            {isAdding && (
-                <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                >
-                    <Card className="p-4 border-primary/30 bg-primary/5">
-                        <form onSubmit={handleAddMacro} className="space-y-4">
-                            <SectionHeader title="Quick Log" icon={Plus} />
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Calories</label>
-                                    <Input type="number" placeholder="0" value={cal} onChange={e => setCal(e.target.value)} autoFocus />
+            <AnimatePresence>
+                {isAdding && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <Card className="p-4 border-primary/30 bg-primary/5">
+                            <form onSubmit={handleAddMacro} className="space-y-4">
+                                <SectionHeader title="Quick Log" icon={Plus} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Calories</label>
+                                        <Input type="number" placeholder="0" value={cal} onChange={e => setCal(e.target.value)} autoFocus />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Protein (g)</label>
+                                        <Input type="number" placeholder="0" value={pro} onChange={e => setPro(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Carbs (g)</label>
+                                        <Input type="number" placeholder="0" value={carb} onChange={e => setCarb(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Fats (g)</label>
+                                        <Input type="number" placeholder="0" value={fat} onChange={e => setFat(e.target.value)} />
+                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Protein (g)</label>
-                                    <Input type="number" placeholder="0" value={pro} onChange={e => setPro(e.target.value)} />
+                                <div className="flex gap-2 pt-2">
+                                    <Button type="submit" className="flex-1">Add to Log</Button>
+                                    <Button variant="outline" type="button" onClick={() => setIsAdding(false)}>Cancel</Button>
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Carbs (g)</label>
-                                    <Input type="number" placeholder="0" value={carb} onChange={e => setCarb(e.target.value)} />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Fats (g)</label>
-                                    <Input type="number" placeholder="0" value={fat} onChange={e => setFat(e.target.value)} />
-                                </div>
-                            </div>
-                            <div className="flex gap-2 pt-2">
-                                <Button type="submit" className="flex-1">Add to Log</Button>
-                                <Button variant="outline" type="button" onClick={() => setIsAdding(false)}>Cancel</Button>
-                            </div>
-                        </form>
-                    </Card>
-                </motion.div>
-            )}
+                            </form>
+                        </Card>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Meal History */}
+            <section className="space-y-4">
+                <SectionHeader title="Daily History" icon={Utensils} />
+                <div className="space-y-3">
+                    {dailyLog?.items && dailyLog.items.length > 0 ? (
+                        dailyLog.items.map(item => (
+                            <MealItem
+                                key={item.id}
+                                item={item}
+                                onDelete={() => deleteItem(item.id)}
+                                onUpdate={(updates) => updateItem(item.id, updates)}
+                            />
+                        ))
+                    ) : (
+                        <Card className="p-8 text-center bg-muted/20 border-dashed">
+                            <Utensils className="mx-auto text-muted-foreground/30 mb-2" size={32} />
+                            <p className="text-sm text-muted-foreground">No meals logged for this day</p>
+                        </Card>
+                    )}
+                </div>
+            </section>
 
             {/* Macros Section */}
             <section className="space-y-4">
@@ -268,17 +370,13 @@ export default function NutritionPage() {
                 </Card>
             </section>
 
-            <div className="pt-4">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-muted-foreground"
-                    onClick={resetDay}
-                    disabled={!dailyLog}
-                >
-                    Reset day logs
-                </Button>
-            </div>
+            {/* Danger Zone */}
+            <DangerZone
+                title="Clear Daily Logs"
+                description="This will permanently delete all meals logged for the selected date. Your macro goals and profile data will not be affected."
+                onReset={resetDay}
+                buttonLabel="Reset Today's Progress"
+            />
         </div>
     );
 }

@@ -3,11 +3,33 @@
 import { useState, use, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/db';
-import { Button, Card, Input, SectionHeader, Badge, EmptyState } from '@/components/ui/core';
-import { Plus, Trash2, ArrowLeft, GripVertical, Play, CalendarPlus, X } from 'lucide-react';
+import { Button, Card, Input, SectionHeader, Badge, EmptyState, cn } from '@/components/ui/core';
+import {
+    Plus, Trash2, ArrowLeft, Play, CalendarPlus, X, Target, Zap,
+    Activity, Shield, Check, ChevronDown, ChevronRight
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+
+
+
+const MUSCLE_GROUPS = [
+    { id: 'chest', label: 'Chest', category: 'Upper Body' },
+    { id: 'back', label: 'Back', category: 'Upper Body' },
+    { id: 'shoulders', label: 'Shoulders', category: 'Upper Body' },
+    { id: 'biceps', label: 'Biceps', category: 'Upper Body' },
+    { id: 'triceps', label: 'Triceps', category: 'Upper Body' },
+    { id: 'forearms', label: 'Forearms', category: 'Upper Body' },
+    { id: 'traps', label: 'Traps', category: 'Upper Body' },
+    { id: 'quads', label: 'Quads', category: 'Lower Body' },
+    { id: 'hamstrings', label: 'Hamstrings', category: 'Lower Body' },
+    { id: 'glutes', label: 'Glutes', category: 'Lower Body' },
+    { id: 'calves', label: 'Calves', category: 'Lower Body' },
+    { id: 'abs', label: 'Abs', category: 'Core' },
+] as const;
+
+const MUSCLE_CATEGORIES = ['Upper Body', 'Lower Body', 'Core'] as const;
 
 export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -18,6 +40,14 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
     const [exerciseName, setExerciseName] = useState('');
     const [targetSets, setTargetSets] = useState('3');
     const [targetReps, setTargetReps] = useState('8-12');
+    const [selectedCategory, setSelectedCategory] = useState<string>('chest');
+    const [expandedCategories, setExpandedCategories] = useState<string[]>(['Upper Body']);
+
+    const toggleCategory = (cat: string) => {
+        setExpandedCategories(prev =>
+            prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+        );
+    };
 
     // Template Management State
     const [activeTemplateId, setActiveTemplateId] = useState<number | null>(null);
@@ -43,10 +73,9 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
         if (!activeTemplateId) return [];
 
         const junctions = await db.programExercises
-            .where({ programId, workoutTemplateId: activeTemplateId }) // Compound index usage or filter
+            .where({ programId, workoutTemplateId: activeTemplateId })
             .toArray();
 
-        // Manual sort since compound index might not be fully optimized for sort yet
         junctions.sort((a, b) => a.order - b.order);
 
         return Promise.all(
@@ -79,12 +108,17 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
         // 1. Create or find exercise globally
         let exercise = await db.exercises.where('name').equalsIgnoreCase(exerciseName).first();
         if (!exercise) {
-            const exId = await db.exercises.add({ name: exerciseName });
+            const exId = await db.exercises.add({
+                name: exerciseName,
+                category: selectedCategory
+            });
             exercise = await db.exercises.get(exId);
+        } else if (exercise.category !== selectedCategory) {
+            // Update category if it was changed globally
+            await db.exercises.update(exercise.id, { category: selectedCategory });
         }
 
         // 2. Add to program_exercises for specific template
-        // Count exercises in this specific template
         const allInTemplate = await db.programExercises
             .where({ programId, workoutTemplateId: activeTemplateId })
             .count();
@@ -110,22 +144,21 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
 
     const deleteTemplate = async (templateId: number) => {
         if (confirm('Delete this workout day and all its exercises?')) {
-            // Delete exercises first
             await db.programExercises
                 .where({ programId, workoutTemplateId: templateId })
                 .delete();
-
-            // Delete template
             await db.workoutTemplates.delete(templateId);
-
-            // Reset active to first available or null
             if (activeTemplateId === templateId) {
-                setActiveTemplateId(null); // Effect will pick next
+                setActiveTemplateId(null);
             }
         }
     };
 
     if (!program) return <div className="p-4">Loading...</div>;
+
+    const getMuscleCategory = (muscleId: string) => {
+        return MUSCLE_GROUPS.find(m => m.id === muscleId)?.category || 'Upper Body';
+    };
 
     return (
         <div className="space-y-6 animate-fade-in pb-24">
@@ -138,82 +171,75 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                 </Link>
                 <div className="flex-1">
                     <h1 className="text-2xl font-black tracking-tight">{program.name}</h1>
-                    <p className="text-sm text-muted-foreground">
-                        Configure your workout schedule
+                    <p className="text-sm text-muted-foreground uppercase font-black tracking-widest opacity-60">
+                        Workout Structure
                     </p>
                 </div>
             </header>
 
             {/* Template Tabs (Workout Days) */}
-            <section className="space-y-2">
+            <section className="space-y-4">
                 <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Workout Days
-                    </h3>
+                    <SectionHeader title="Workout Days" icon={Activity} />
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-xs gap-1"
+                        className="h-8 text-xs gap-1 font-black"
                         onClick={() => setIsAddingDay(true)}
                     >
-                        <Plus size={12} /> Add Day
+                        <Plus size={14} /> NEW DAY
                     </Button>
                 </div>
 
-                {/* Add Day Input */}
                 {isAddingDay && (
                     <motion.form
-                        initial={{ opacity: 0, y: -5 }}
+                        initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         onSubmit={handleAddDay}
-                        className="flex gap-2 mb-2"
+                        className="flex gap-2 mb-2 p-3 bg-secondary/20 rounded-2xl"
                     >
                         <Input
                             value={newDayName}
                             onChange={e => setNewDayName(e.target.value)}
-                            placeholder="Day Name (e.g. Upper A)"
+                            placeholder="e.g. Upper Body"
                             autoFocus
-                            className="h-9"
+                            className="bg-background font-bold"
                         />
-                        <Button type="submit" size="sm" className="h-9">Save</Button>
+                        <Button type="submit" className="font-black px-4">ADD</Button>
                         <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9"
                             onClick={() => setIsAddingDay(false)}
                         >
-                            <X size={16} />
+                            <X size={18} />
                         </Button>
                     </motion.form>
                 )}
 
-                {/* Tags/Tabs List */}
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                     {templates?.map(t => (
-                        <div key={t.id} className="relative group">
+                        <div key={t.id} className="relative group shrink-0">
                             <button
                                 onClick={() => setActiveTemplateId(t.id)}
                                 className={`
-                                    px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all
+                                    px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all border-2
                                     ${activeTemplateId === t.id
-                                        ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                                        : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'}
+                                        ? 'bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105'
+                                        : 'bg-card border-border text-muted-foreground hover:border-primary/30'}
                                 `}
                             >
                                 {t.name}
                             </button>
-                            {/* Simple delete via long press logic or small button could go here, 
-                                but for mobile, maybe just a small x if active? */}
                             {activeTemplateId === t.id && templates.length > 1 && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         deleteTemplate(t.id);
                                     }}
-                                    className="absolute -top-1 -right-1 bg-destructive text-white rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="absolute -top-1 -right-1 bg-destructive text-white rounded-full p-1 shadow-lg border-2 border-background"
                                 >
-                                    <X size={10} />
+                                    <X size={8} strokeWidth={4} />
                                 </button>
                             )}
                         </div>
@@ -225,28 +251,28 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
             <section className="space-y-4">
                 <SectionHeader
                     title={templates?.find(t => t.id === activeTemplateId)?.name || "Exercises"}
+                    icon={Target}
                     action={
                         <Button
                             size="sm"
                             disabled={!activeTemplateId}
                             onClick={() => setIsAddingExercise(!isAddingExercise)}
-                            className="gap-2"
+                            className="gap-2 h-9 rounded-xl font-black"
                         >
-                            <Plus size={16} /> Add Exercise
+                            <Plus size={16} /> ADD
                         </Button>
                     }
                 />
 
                 {isAddingExercise && activeTemplateId && (
                     <motion.div
-                        initial={{ opacity: 0, y: -10 }}
+                        initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
                     >
-                        <Card className="p-4 border-primary/30 bg-primary/5">
-                            <form onSubmit={handleAddExercise} className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-muted-foreground">
+                        <Card className="p-5 border-primary/30 bg-primary/5 space-y-5 shadow-2xl">
+                            <form onSubmit={handleAddExercise} className="space-y-5">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
                                         Exercise Name
                                     </label>
                                     <Input
@@ -254,38 +280,122 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                                         value={exerciseName}
                                         onChange={(e) => setExerciseName(e.target.value)}
                                         autoFocus
+                                        className="h-11 bg-background font-bold"
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold uppercase text-muted-foreground">
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                                        Primary Muscle Group
+                                        <span className="h-px flex-1 bg-border" />
+                                    </label>
+
+                                    <div className="space-y-2">
+                                        {MUSCLE_CATEGORIES.map(catName => {
+                                            const categoryMuscles = MUSCLE_GROUPS.filter(m => m.category === catName);
+                                            const isExpanded = expandedCategories.includes(catName);
+
+                                            return (
+                                                <div key={catName} className="space-y-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleCategory(catName)}
+                                                        className="w-full flex items-center justify-between p-3 px-4 rounded-2xl bg-card/40 border border-border/40 hover:bg-muted/30 transition-all group shadow-sm active:scale-[0.98]"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-black uppercase tracking-[0.2em] text-foreground">
+                                                                {catName}
+                                                            </span>
+                                                        </div>
+                                                        <div className={`transition-transform duration-500 ease-out ${isExpanded ? 'rotate-180' : ''}`}>
+                                                            <ChevronDown size={18} className="text-muted-foreground/60" />
+                                                        </div>
+                                                    </button>
+
+                                                    <AnimatePresence initial={false}>
+                                                        {isExpanded && (
+                                                            <motion.div
+                                                                initial={{ height: 0, opacity: 0, y: -10 }}
+                                                                animate={{ height: 'auto', opacity: 1, y: 0 }}
+                                                                exit={{ height: 0, opacity: 0, y: -10 }}
+                                                                transition={{ duration: 0.3, ease: "circOut" }}
+                                                                className="overflow-hidden"
+                                                            >
+                                                                <div className="grid grid-cols-2 gap-2.5 py-3">
+                                                                    {categoryMuscles.map((mg) => {
+                                                                        const isSelected = selectedCategory === mg.id;
+                                                                        return (
+                                                                            <button
+                                                                                key={mg.id}
+                                                                                type="button"
+                                                                                onClick={() => setSelectedCategory(mg.id)}
+                                                                                className={`
+                                                                                    flex items-center justify-between px-5 h-14 rounded-2xl border-2 transition-all relative overflow-hidden backdrop-blur-sm
+                                                                                    ${isSelected
+                                                                                        ? 'border-primary bg-primary shadow-xl shadow-primary/25 z-10 scale-[1.03] animate-in fade-in zoom-in-95 duration-200'
+                                                                                        : 'border-border bg-card/50 text-foreground/60 dark:text-foreground/80 hover:border-primary/40 hover:bg-accent'}
+                                                                                `}
+                                                                            >
+                                                                                <span className={`text-[11px] font-black uppercase tracking-wide ${isSelected ? 'text-black dark:text-white' : ''}`}>
+                                                                                    {mg.label}
+                                                                                </span>
+                                                                                {isSelected && (
+                                                                                    <motion.div
+                                                                                        initial={{ scale: 0, x: 20 }}
+                                                                                        animate={{ scale: 1, x: 0 }}
+                                                                                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                                                                    >
+                                                                                        <div className="bg-black/10 dark:bg-white/20 rounded-full p-1 border border-black/5 dark:border-white/5">
+                                                                                            <Check size={12} strokeWidth={4} className="text-black dark:text-white" />
+                                                                                        </div>
+                                                                                    </motion.div>
+                                                                                )}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
                                             Sets
                                         </label>
                                         <Input
                                             type="number"
                                             value={targetSets}
                                             onChange={e => setTargetSets(e.target.value)}
+                                            className="h-11 bg-background font-bold text-center"
                                         />
                                     </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold uppercase text-muted-foreground">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
                                             Reps Goal
                                         </label>
                                         <Input
-                                            placeholder="e.g. 10 or 8-12"
+                                            placeholder="e.g. 8-12"
                                             value={targetReps}
                                             onChange={e => setTargetReps(e.target.value)}
+                                            className="h-11 bg-background font-bold text-center"
                                         />
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button type="submit" className="flex-1">
-                                        Add to {templates?.find(t => t.id === activeTemplateId)?.name}
+                                <div className="flex gap-2 pt-2">
+                                    <Button type="submit" className="flex-1 h-12 font-black uppercase tracking-widest">
+                                        Save Exercise
                                     </Button>
                                     <Button
                                         variant="outline"
                                         type="button"
                                         onClick={() => setIsAddingExercise(false)}
+                                        className="h-12"
                                     >
                                         Cancel
                                     </Button>
@@ -304,33 +414,34 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{ duration: 0.2 }}
                             >
-                                <Card className="p-4 hover-lift group">
+                                <Card className="p-4 hover-lift group border-primary/5">
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3 flex-1">
-                                            <div className="cursor-grab text-muted-foreground">
-                                                <GripVertical size={18} />
-                                            </div>
+                                        <div className="flex items-center gap-4 flex-1">
                                             <div className="flex-1">
-                                                <h4 className="font-bold">{item.exercise?.name}</h4>
+                                                <h4 className="font-bold text-sm tracking-tight">{item.exercise?.name}</h4>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <Badge variant="outline" className="text-xs">
+                                                    <Badge variant="outline" className="text-[9px] h-5 px-2 bg-muted/50 border-none font-black uppercase">
                                                         {item.targetSets} sets
                                                     </Badge>
-                                                    <Badge variant="outline" className="text-xs">
+                                                    <Badge variant="outline" className="text-[9px] h-5 px-2 bg-muted/50 border-none font-black uppercase" >
                                                         {item.targetReps} reps
                                                     </Badge>
+                                                    {item.exercise?.category && (
+                                                        <Badge className="text-[9px] h-5 px-2 bg-primary/10 text-primary border-none font-black uppercase">
+                                                            {item.exercise.category}
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="text-destructive opacity-50 hover:opacity-100 transition-opacity"
+                                            className="text-destructive opacity-30 group-hover:opacity-100 transition-opacity"
                                             onClick={() => removeExercise(item.id)}
                                         >
-                                            <Trash2 size={18} />
+                                            <Trash2 size={16} />
                                         </Button>
                                     </div>
                                 </Card>
@@ -341,12 +452,12 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                     {exercisesInProgram?.length === 0 && !isAddingExercise && (
                         <EmptyState
                             icon={CalendarPlus}
-                            title="Empty Workout"
-                            description={`Add exercises to "${templates?.find(t => t.id === activeTemplateId)?.name}" to build this routine.`}
+                            title="Plan empty"
+                            description={`Add your first exercise to the "${templates?.find(t => t.id === activeTemplateId)?.name}" routine.`}
                             action={
-                                <Button onClick={() => setIsAddingExercise(true)} className="gap-2">
+                                <Button onClick={() => setIsAddingExercise(true)} className="gap-2 h-11 px-6 rounded-xl font-black">
                                     <Plus size={18} />
-                                    Add Exercise
+                                    ADD EXERCISE
                                 </Button>
                             }
                         />
@@ -356,11 +467,11 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
 
             {/* Floating Start Button */}
             {exercisesInProgram && exercisesInProgram.length > 0 && (
-                <div className="fixed bottom-20 left-4 right-4 max-w-md mx-auto">
-                    <Link href={`/workouts/session/${programId}`}>
-                        <Button className="w-full h-14 text-lg font-black gap-2 shadow-2xl animate-pulse-glow">
-                            <Play size={24} fill="currentColor" />
-                            Start {templates?.find(t => t.id === activeTemplateId)?.name}
+                <div className="fixed bottom-20 left-4 right-4 max-w-md mx-auto z-40">
+                    <Link href={`/workouts/session/${programId}?templateId=${activeTemplateId}`}>
+                        <Button className="w-full h-14 text-sm font-black uppercase tracking-[0.2em] gap-3 shadow-2xl rounded-2xl animate-pulse-glow">
+                            <Play size={20} fill="currentColor" />
+                            Start Workout
                         </Button>
                     </Link>
                 </div>

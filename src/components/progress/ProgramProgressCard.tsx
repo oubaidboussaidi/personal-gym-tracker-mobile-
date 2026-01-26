@@ -114,24 +114,37 @@ export function ProgramProgressCard({ program, exercises, sessions, sets }: Prog
                 </div>
 
                 {/* Chart Area */}
-                <div className="h-48 w-full -mx-2">
+                <div className="h-56 w-full -mx-2 relative">
+                    {/* Background Glow */}
+                    <div className="absolute inset-0 bg-primary/5 blur-3xl rounded-full" />
+
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={stats.map(s => ({ ...s, dateFormatted: format(s.date, 'MMM dd') }))}>
+                        <AreaChart
+                            data={stats.map(s => ({ ...s, dateFormatted: format(s.date, 'MMM dd') }))}
+                            margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+                        >
                             <defs>
                                 <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                                    <stop offset="60%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
                                     <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                                 </linearGradient>
+                                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                                    <feGaussianBlur stdDeviation="3" result="blur" />
+                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                </filter>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" opacity={0.3} />
+                            <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="hsl(var(--muted))" opacity={0.2} />
                             <XAxis
                                 dataKey="dateFormatted"
                                 fontSize={10}
                                 axisLine={false}
                                 tickLine={false}
                                 stroke="hsl(var(--muted-foreground))"
+                                minTickGap={20}
                             />
                             <YAxis
+                                domain={['dataMin - 5', 'dataMax + 5']}
                                 fontSize={10}
                                 axisLine={false}
                                 tickLine={false}
@@ -140,23 +153,41 @@ export function ProgramProgressCard({ program, exercises, sessions, sets }: Prog
                             />
                             <Tooltip
                                 contentStyle={{
-                                    backgroundColor: 'hsl(var(--card))',
-                                    borderRadius: '12px',
-                                    border: '1px solid hsl(var(--border))',
-                                    boxShadow: 'var(--shadow-lg)',
-                                    fontSize: '12px'
+                                    backgroundColor: 'hsl(var(--popover) / 0.9)',
+                                    backdropFilter: 'blur(8px)',
+                                    borderRadius: '16px',
+                                    border: '1px solid hsl(var(--primary) / 0.2)',
+                                    boxShadow: 'var(--shadow-xl)',
+                                    fontSize: '12px',
+                                    color: 'hsl(var(--popover-foreground))'
                                 }}
-                                formatter={(value: any) => [`${value}kg`, 'Weight']}
+                                itemStyle={{ color: 'hsl(var(--primary))', fontWeight: 'bold' }}
+                                cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '5 5' }}
+                                formatter={(value: any) => [`${value} kg`, 'Max Weight']}
                             />
                             <Area
                                 type="monotone"
                                 dataKey="maxWeight"
                                 stroke="hsl(var(--primary))"
-                                strokeWidth={3}
+                                strokeWidth={4}
                                 fill="url(#chartGradient)"
-                                animationDuration={1000}
-                                dot={{ fill: 'hsl(var(--primary))', r: 4, strokeWidth: 0 }}
-                                activeDot={{ r: 6, strokeWidth: 0 }}
+                                strokeLinecap="round"
+                                animationDuration={1500}
+                                animationEasing="ease-in-out"
+                                filter="url(#glow)"
+                                dot={{
+                                    fill: 'hsl(var(--primary))',
+                                    r: 5,
+                                    strokeWidth: 2,
+                                    stroke: 'hsl(var(--card))',
+                                    fillOpacity: 1
+                                }}
+                                activeDot={{
+                                    r: 7,
+                                    strokeWidth: 3,
+                                    stroke: 'hsl(var(--card))',
+                                    fill: 'hsl(var(--primary))'
+                                }}
                             />
                         </AreaChart>
                     </ResponsiveContainer>

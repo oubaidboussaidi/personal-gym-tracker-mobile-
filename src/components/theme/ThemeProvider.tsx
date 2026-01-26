@@ -2,17 +2,21 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark';
+export type Personality = 'onyx' | 'cyberpunk' | 'ocean';
 
 interface ThemeContextType {
     theme: Theme;
+    personality: Personality;
     toggleTheme: () => void;
+    setPersonality: (p: Personality) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, setTheme] = useState<Theme>('dark');
+    const [personality, setPersonalityState] = useState<Personality>('onyx');
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -22,9 +26,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (savedTheme === 'light' || savedTheme === 'dark') {
             setTheme(savedTheme as Theme);
         } else {
-            // Check system preference
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             setTheme(prefersDark ? 'dark' : 'light');
+        }
+
+        // Load personality
+        const savedPersonality = localStorage.getItem('fitness-tracker-personality') as Personality;
+        if (['onyx', 'cyberpunk', 'ocean'].includes(savedPersonality)) {
+            setPersonalityState(savedPersonality);
+        }
+
+        // Request persistent storage
+        if (typeof navigator !== 'undefined' && 'storage' in navigator && 'persist' in navigator.storage) {
+            navigator.storage.persist().then(persistent => {
+                if (persistent) console.log("Storage will not be cleared except by explicit user action");
+            });
         }
     }, []);
 
@@ -32,18 +48,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (!mounted) return;
 
         const root = document.documentElement;
-        root.classList.remove('light', 'dark');
+        root.classList.remove('light', 'dark', 'onyx', 'cyberpunk', 'ocean');
         root.classList.add(theme);
+        root.classList.add(personality);
+
         localStorage.setItem('fitness-tracker-theme', theme);
-    }, [theme, mounted]);
+        localStorage.setItem('fitness-tracker-personality', personality);
+    }, [theme, personality, mounted]);
 
     const toggleTheme = () => {
         setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     };
 
-    // Always provide context, even before mounting
+    const setPersonality = (p: Personality) => {
+        setPersonalityState(p);
+    };
+
     return (
-        <ThemeContext.Provider value={{ theme, toggleTheme }}>
+        <ThemeContext.Provider value={{ theme, personality, toggleTheme, setPersonality }}>
             {children}
         </ThemeContext.Provider>
     );

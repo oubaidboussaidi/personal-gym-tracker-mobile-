@@ -4,6 +4,7 @@ import "./globals.css";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Header } from "@/components/layout/Header";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { PersonalityToggle } from "@/components/layout/PersonalityToggle";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { NotificationInitializer } from "@/components/notifications/NotificationInitializer";
 
@@ -61,6 +62,7 @@ export default function RootLayout({
         <ThemeProvider>
           <NotificationInitializer />
           <ThemeToggle />
+          <PersonalityToggle />
           <main className="container mx-auto max-w-md px-4 pt-6">
             <Header />
             {children}

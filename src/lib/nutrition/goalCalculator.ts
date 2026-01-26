@@ -1,13 +1,22 @@
 import type { UserProfile, NutritionGoals } from '@/db/db';
 
 /**
- * Calculate Basal Metabolic Rate using Mifflin-St Jeor equation
+ * Calculate Basal Metabolic Rate
+ * Uses Katch-McArdle if body fat is available (most accurate)
+ * Falls back to Mifflin-St Jeor equation
  * Men: (10 × weight) + (6.25 × height) - (5 × age) + 5
  * Women: (10 × weight) + (6.25 × height) - (5 × age) - 161
  */
 export function calculateBMR(profile: UserProfile): number {
-    const { weight, height, age, gender } = profile;
+    const { weight, height, age, gender, bodyFatPercentage } = profile;
 
+    // 1. Try Katch-McArdle if body fat is provided (independent of gender)
+    if (bodyFatPercentage && bodyFatPercentage > 0) {
+        const lbm = weight * (1 - (bodyFatPercentage / 100)); // Lean Body Mass
+        return 370 + (21.6 * lbm);
+    }
+
+    // 2. Fallback to Mifflin-St Jeor
     // Use age 25 as default if not provided
     const ageValue = age || 25;
 

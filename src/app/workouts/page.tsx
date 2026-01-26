@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/db';
 import { Button, Card, Input, SectionHeader, Badge, EmptyState, StatCard } from '@/components/ui/core';
+import { DangerZone } from '@/components/ui/DangerZone';
 import { Plus, Dumbbell, Play, Settings2, Calendar, TrendingUp, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -14,14 +15,10 @@ export default function WorkoutsPage() {
     const [newName, setNewName] = useState('');
     const [error, setError] = useState<string | null>(null);
 
-    // Show all programs (active and archived) for now, or filter? 
-    // User asked for "delete", sticking to active for main view but normally we might want an archive view.
-    // For now, listing active (isArchived: 0).
     const programs = useLiveQuery(() =>
         db.programs.where('isArchived').equals(0).toArray()
     ) || [];
 
-    // Get sessions this week for stats
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
 
@@ -52,7 +49,6 @@ export default function WorkoutsPage() {
         }
     };
 
-    // Cascade delete function
     const deleteProgram = async (id: number, name: string) => {
         if (!confirm(`Are you sure you want to PERMANENTLY delete "${name}"?\n\nThis will remove ALL workout templates, sessions, and history associated with this program.\n\nThis action cannot be undone.`)) {
             return;
@@ -60,29 +56,34 @@ export default function WorkoutsPage() {
 
         try {
             await db.transaction('rw', [db.programs, db.workoutTemplates, db.programExercises, db.sessions, db.sets], async () => {
-                // 1. Delete Sets (need to find sessions first)
                 const sessions = await db.sessions.where('programId').equals(id).toArray();
                 const sessionIds = sessions.map(s => s.id);
                 if (sessionIds.length > 0) {
                     await db.sets.where('sessionId').anyOf(sessionIds).delete();
                 }
-
-                // 2. Delete Sessions
                 await db.sessions.where('programId').equals(id).delete();
-
-                // 3. Delete Program Exercises Junctions
                 await db.programExercises.where('programId').equals(id).delete();
-
-                // 4. Delete Workout Templates
                 await db.workoutTemplates.where('programId').equals(id).delete();
-
-                // 5. Delete Program
                 await db.programs.delete(id);
             });
         } catch (error) {
             console.error("Failed to delete program:", error);
             alert("Failed to delete program. See console for details.");
         }
+    };
+
+    const handleResetWorkouts = async () => {
+        if (!confirm('⚠️ DELETE ALL WORKOUTS?\n\nThis will permanently remove all your training programs, exercises, workout sessions, and set history. This cannot be undone.')) {
+            return;
+        }
+        await db.transaction('rw', [db.programs, db.workoutTemplates, db.programExercises, db.sessions, db.sets], async () => {
+            await db.sets.clear();
+            await db.sessions.clear();
+            await db.programExercises.clear();
+            await db.workoutTemplates.clear();
+            await db.programs.clear();
+        });
+        window.location.reload();
     };
 
     const [mounted, setMounted] = useState(false);
@@ -93,7 +94,7 @@ export default function WorkoutsPage() {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in pb-12">
+        <div className="space-y-6 animate-fade-in pb-24">
             {/* Action Bar */}
             <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
@@ -201,6 +202,14 @@ export default function WorkoutsPage() {
                 </div>
             </section>
 
+            {/* Danger Zone */}
+            <DangerZone
+                title="Wipe Workout History"
+                description="This will instantly delete all your programs, sessions, and sets. Your nutrition and profile data will remain safe."
+                onReset={handleResetWorkouts}
+                buttonLabel="Clear All Workouts"
+            />
+
             {/* Copyright */}
             <footer className="pt-8 pb-4 text-center">
                 <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-muted-foreground/40">
@@ -229,7 +238,6 @@ function WorkoutProgramCard({ program, onDelete }: { program: any, onDelete: () 
 
     return (
         <Card className="p-4 hover-lift group relative overflow-hidden">
-            {/* Subtle gradient background */}
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
             <div className="relative z-10 space-y-3">
