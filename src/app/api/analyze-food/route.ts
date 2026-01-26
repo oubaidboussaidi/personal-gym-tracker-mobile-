@@ -13,23 +13,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Gemini API Key not configured" }, { status: 500 });
         }
 
-        const prompt = `
-            Analyze this food image. Provide:
-            1. A short, descriptive name of the dish (e.g., "Apple", "Grilled Salmon", "Chicken Sandwich").
-            2. Estimated calories (kcal).
-            3. Estimated protein (g).
-            4. Estimated carbohydrates (g).
-            5. Estimated fats (g).
+        // We use the most absolute stable config for visual analysis
+        const prompt = `Analyze this food image and return a JSON object with: 
+        "name" (string), "calories" (number), "protein" (number), "carbs" (number), "fat" (number). 
+        Return ONLY the raw JSON.`;
 
-            Format the response as a valid JSON object ONLY, with these exact keys:
-            { "name": string, "calories": number, "protein": number, "carbs": number, "fat": number }
-            
-            Be as accurate as possible for a standard portion. If multiple items are present, estimate for the total meal shown.
-        `;
-
-        // Use direct REST API to avoid SDK version conflicts (forces v1 stable)
+        // Direct Fetch using snake_case (Mandatory for the REST API)
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
             {
                 method: "POST",
                 headers: {
@@ -41,8 +32,8 @@ export async function POST(req: Request) {
                             parts: [
                                 { text: prompt },
                                 {
-                                    inlineData: {
-                                        mimeType: "image/jpeg",
+                                    inline_data: {
+                                        mime_type: "image/jpeg",
                                         data: image,
                                     },
                                 },
@@ -54,20 +45,20 @@ export async function POST(req: Request) {
         );
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || "AI Analysis failed");
+            const errorBody = await response.json();
+            throw new Error(errorBody.error?.message || "AI Analysis failed");
         }
 
         const result = await response.json();
-        const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
-        if (!responseText) {
-            throw new Error("Empty response from AI");
+        if (!text) {
+            throw new Error("No analysis received from AI.");
         }
 
-        // Resilient JSON parsing (handles potential markdown wrapping)
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        const analysis = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+        // Clean any markdown code blocks from the string
+        const jsonStr = text.replace(/```json|```/g, "").trim();
+        const analysis = JSON.parse(jsonStr);
 
         return NextResponse.json(analysis);
     } catch (error: any) {
