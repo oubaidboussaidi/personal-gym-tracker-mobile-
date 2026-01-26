@@ -49,9 +49,6 @@ export async function POST(req: Request) {
                             ],
                         },
                     ],
-                    generation_config: {
-                        response_mime_type: "application/json",
-                    },
                 }),
             }
         );
